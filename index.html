@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Task Manager</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f5f7;
+            margin: 0;
+            padding: 20px;
+            color: #172b4d;
+        }
+
+        h2 {
+            color: #091e42;
+        }
+
+        /* --- Form Styling --- */
+        .task-form {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .task-form input[type="text"] {
+            flex-grow: 1; /* Makes the name input take up most space */
+            padding: 10px;
+            border: 2px solid #dfe1e6;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .task-form input[type="text"]:focus {
+            border-color: #0079bf;
+            outline: none;
+        }
+
+        .task-form select, .task-form button {
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .task-form button {
+            background-color: #0079bf;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .task-form button:hover {
+            background-color: #026aa7;
+        }
+
+        /* --- Task List Styling --- */
+        #task-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .task-card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            padding: 15px 20px;
+            border: 1px solid #dfe1e6;
+        }
+
+        .task-card p {
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        .task-card strong {
+            color: #42526e; /* Slightly darker for labels */
+            display: inline-block;
+            min-width: 60px;
+        }
+        
+        /* Style for the status dropdown in the list */
+        .task-card select {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            margin-left: 5px;
+        }
+
+        /* --- Link to other page --- */
+        a {
+            display: inline-block;
+            margin-top: 20px;
+            color: #0079bf;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+
+    </style>
+</head>
+<body>
+    <h2>Add New Task</h2>
+    <div class="task-form">
+        <input type="text" id="task-name" placeholder="Task Name">
+        <select id="task-status">
+            <option value="open">Open</option>
+            <option value="close">Close</option>
+        </select>
+        <button id="add-task-btn">Add Task</button>
+    </div>
+
+    <hr>
+    <h2>Current Tasks (Real-time)</h2>
+    <div id="task-list"></div>
+
+    <a href="filter.html">Go to Filter Page</a>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDVE9c41wxQ3sIoH37M5viRZddrIiv7H7o",
+            authDomain: "task-2-8126e.firebaseapp.com",
+            projectId: "task-2-8126e",
+            storageBucket: "task-2-8126e.firebasestorage.app",
+            messagingSenderId: "881596305676",
+            appId: "1:881596305676:web:9bb7627684f19fba67f929",
+            measurementId: "G-WH5EZ4GZ5P"
+        };
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const tasksCollection = db.collection("tasks");
+
+        document.getElementById("add-task-btn").addEventListener("click", () => {
+            const name = document.getElementById("task-name").value;
+            const status = document.getElementById("task-status").value;
+
+            if (name) {
+                tasksCollection.add({
+                    name: name,
+                    status: status,
+                    creation_date: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => {
+                    document.getElementById("task-name").value = ""; 
+                })
+                .catch((error) => console.error("Error adding document: ", error));
+            }
+        });
+
+        // --- Real-time Task List (Requirement 4) ---
+        const taskListDiv = document.getElementById("task-list");
+        
+        tasksCollection.orderBy("creation_date", "desc").onSnapshot(snapshot => {
+            taskListDiv.innerHTML = ""; // Clear list
+            if (snapshot.empty) {
+                taskListDiv.innerHTML = "<p>No tasks found.</p>";
+                return;
+            }
+
+            snapshot.forEach(doc => {
+                const task = doc.data();
+                const taskId = doc.id;
+                
+                const taskElement = document.createElement("div");
+                taskElement.className = "task-card"; // Apply the card style
+                
+                taskElement.innerHTML = `
+                    <p>
+                        <strong>ID:</strong> ${taskId} <br>
+                        <strong>Name:</strong> ${task.name} <br>
+                        <strong>Status:</strong> 
+                        <select data-id="${taskId}">
+                            <option value="open" ${task.status === 'open' ? 'selected' : ''}>Open</option>
+                            <option value="close" ${task.status === 'close' ? 'selected' : ''}>Close</option>
+                        </select><br>
+                        <strong>Date:</strong> ${task.creation_date ? task.creation_date.toDate().toLocaleString() : 'Pending...'}
+                    </p>
+                `;
+
+                // Add event listener for the dropdown
+                const statusSelect = taskElement.querySelector("select");
+                statusSelect.addEventListener("change", (e) => {
+                    const newStatus = e.target.value;
+                    const idToUpdate = e.target.dataset.id;
+                    tasksCollection.doc(idToUpdate).update({
+                        status: newStatus
+                    }).catch(err => console.error("Error updating status: ", err));
+                });
+
+                taskListDiv.appendChild(taskElement);
+            });
+        });
+    </script>
+</body>
+</html>

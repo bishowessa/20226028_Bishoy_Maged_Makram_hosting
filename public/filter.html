@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Filter Tasks</title>
+     <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f5f7;
+            margin: 0;
+            padding: 20px;
+            color: #172b4d;
+        }
+
+        h2 {
+            color: #091e42;
+        }
+
+        /* --- Filter Bar Styling --- */
+        .filter-bar {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .filter-bar label {
+            font-weight: bold;
+            color: #42526e;
+        }
+
+        .filter-bar select {
+            padding: 10px;
+            border: 2px solid #dfe1e6;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        /* --- Task List Styling --- */
+        #filtered-task-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .task-card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            padding: 15px 20px;
+            border: 1px solid #dfe1e6;
+        }
+
+        .task-card p {
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        .task-card strong {
+            color: #42526e;
+            display: inline-block;
+            min-width: 60px;
+        }
+
+        .error-message {
+            color: #de350b; /* Red for errors */
+            background: #ffebe6;
+            border: 1px solid #ff5630;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        
+        /* --- Link to other page --- */
+        a {
+            display: inline-block;
+            margin-top: 20px;
+            color: #0079bf;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h2>Filter & Sort Tasks</h2>
+
+    <div class="filter-bar">
+        <label for="filter-status">Filter by Status:</label>
+        <select id="filter-status">
+            <option value="all">All Tasks</option>
+            <option value="open">Open Only</option>
+            <option value="close">Close Only</option>
+        </select>
+
+        <label for="sort-order">Sort by Date:</label>
+        <select id="sort-order">
+            <option value="desc">Newest First (desc)</option>
+            <option value="asc">Oldest First (asc)</option>
+        </select>
+    </div>
+
+    <div id="filtered-task-list"></div>
+
+    <a href="index.html">Back to Add Task</a>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyDVE9c41wxQ3sIoH37M5viRZddrIiv7H7o",
+        authDomain: "task-2-8126e.firebaseapp.com",
+        projectId: "task-2-8126e",
+        storageBucket: "task-2-8126e.firebasestorage.app",
+        messagingSenderId: "881596305676",
+        appId: "1:881596305676:web:9bb7627684f19fba67f929",
+        measurementId: "G-WH5EZ4GZ5P"
+    };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const tasksCollection = db.collection("tasks");
+
+        // --- Dynamic Query Logic (Requirement 3) ---
+        const filterStatus = document.getElementById("filter-status");
+        const sortOrder = document.getElementById("sort-order");
+        const filteredTaskListDiv = document.getElementById("filtered-task-list");
+
+        let unsubscribe; // To store the onSnapshot listener
+
+        function buildAndFetchQuery() {
+            if (unsubscribe) {
+                unsubscribe(); // Detach old listener
+            }
+
+            const status = filterStatus.value;
+            const sort = sortOrder.value;
+
+            // 1. Start with the base collection
+            let query = tasksCollection;
+
+            // 2. Add filter (if not "all")
+            if (status !== "all") {
+                query = query.where("status", "==", status);
+            }
+
+            // 3. Add sort (This is the "1 Query")
+            query = query.orderBy("creation_date", sort);
+
+            // 4. Attach the real-time listener
+            unsubscribe = query.onSnapshot(snapshot => {
+                filteredTaskListDiv.innerHTML = ""; // Clear list
+                if (snapshot.empty) {
+                    filteredTaskListDiv.innerHTML = "<p>No tasks match your filter.</p>";
+                    return;
+                }
+                snapshot.forEach(doc => {
+                    const task = doc.data();
+                    const taskId = doc.id;
+                    const taskElement = document.createElement("div");
+                    taskElement.className = "task-card"; // Apply the card style
+                    taskElement.innerHTML = `
+                        <p>
+                            <strong>ID:</strong> ${taskId} <br>
+                            <strong>Name:</strong> ${task.name} <br>
+                            <strong>Status:</strong> ${task.status} <br>
+                            <strong>Date:</strong> ${task.creation_date ? task.creation_date.toDate().toLocaleString() : 'Pending...'}
+                        </p>
+                    `;
+                    filteredTaskListDiv.appendChild(taskElement);
+                });
+            }, error => {
+                console.error("Query failed: ", error);
+                // THIS IS THE ERROR MESSAGE THAT WILL CONTAIN THE LINK!
+                filteredTaskListDiv.innerHTML = `<p class="error-message"><b>Query Failed.</b> Check the console (F12) for an error message with a link to create the required Firestore index.</p>`;
+            });
+        }
+
+        // Listen for changes on the dropdowns
+        filterStatus.addEventListener("change", buildAndFetchQuery);
+        sortOrder.addEventListener("change", buildAndFetchQuery);
+
+        // Run query on initial page load
+        buildAndFetchQuery();
+    </script>
+</body>
+</html>
