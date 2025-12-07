@@ -13,7 +13,7 @@ pipeline {
                 bat 'npm install -g firebase-tools'
             }
         }
-        //comment 2
+        //comment 3
 
         stage('Deploy to Firebase') {
             steps {
